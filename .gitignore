@@ -157,6 +157,8 @@ ENV/
 env.bak/
 venv.bak/
 
+.env.toml
+
 # Spyder project settings
 .spyderproject
 .spyproject
