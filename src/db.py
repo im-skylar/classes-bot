@@ -3,6 +3,8 @@ import os
 from contextlib import contextmanager
 from typing import Any, Generator
 
+import discord
+
 SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "schema.sql")
 
 class ClassesDB():
@@ -29,20 +31,32 @@ class ClassesDB():
             with self._getcon() as con:
                 con.executescript(scheme.read())
 
-    def get_classes(self) -> list[Any]:
+    def get_classes(self, tutor: discord.User|None = None) -> list[Any]:
+        """List all classes by a specific tutor. 
+        
+        Args:
+            tutor: discord id of tutor to look for. leave empty to return all classes"""
+        tutorid = 0
+        list_all = tutor is None
+        if not list_all:
+            tutorid = tutor.id
+        
         with self._getcon() as con:
             cur = con.cursor()
             cur.execute(
                 """SELECT
+                classes.id,
                 classes.name,
                 classes.dow,
                 classes.time,
-                classes.tutor,
                 classes.can_enroll,
                 tutors.discord_id 
                 FROM classes
                 INNER JOIN tutors
-                ON classes.tutor = tutors.id;""")
+                ON classes.tutor = tutors.id
+                WHERE ? = 1
+                OR (tutors.discord_id) = ?;""",
+                (list_all, tutorid,))
             return cur.fetchall()
 
     def add_tutor_or_ignore(self, id: int) -> int:

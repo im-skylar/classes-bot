@@ -30,7 +30,7 @@ class ClassesBot(commands.Bot):
         )
 
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.synced = True #False
+        self.synced = False#True#False
         self.EXT_DIR = "cogs"
 
         self.db = db.ClassesDB(os.getenv("DB_LOCATION"))
