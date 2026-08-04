@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 import discord
 from discord.ext import commands
 
+import src.db as db
+
 TZ = datetime.timezone.utc
 
 
@@ -16,6 +18,8 @@ class ClassesBot(commands.Bot):
     _uptime = datetime.datetime.now(TZ)
 
     def __init__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        load_dotenv()
+
         intents = discord.Intents.default()
 
         super().__init__(
@@ -26,8 +30,13 @@ class ClassesBot(commands.Bot):
         )
 
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.synced = False
+        self.synced = True #False
         self.EXT_DIR = "cogs"
+
+        self.db = db.ClassesDB(os.getenv("DB_LOCATION"))
+        self.db.init_db()
+
+        self.tutor_role_id = int(os.getenv("TUTOR_ROLE"))
 
     async def _load_extensions(self) -> None:
         for fn in [
@@ -61,7 +70,6 @@ class ClassesBot(commands.Bot):
         await super().close()
     
     def run(self, *args, **kwargs) -> None:
-        load_dotenv()
 
         DC_TOKEN = os.getenv("DISCORD")
         if not DC_TOKEN:

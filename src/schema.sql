@@ -1,0 +1,30 @@
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS tutors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id INTEGER UNIQUE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS classes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    dow INTEGER NOT NULL,
+    time TEXT NOT NULL,
+    tutor INTEGER NOT NULL,
+    can_enroll INTEGER DEFAULT FALSE,
+    FOREIGN KEY(tutor) REFERENCES tutors(id)
+);
+
+CREATE TABLE IF NOT EXISTS students (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id INTEGER NOT NULL
+);
+
+-- enrollments
+CREATE TABLE IF NOT EXISTS student_classes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    class INTEGER NOT NULL,
+    student INTEGER NOT NULL,
+    FOREIGN KEY(class) REFERENCES classes (id),
+    FOREIGN KEY(student) REFERENCES students (id)
+);
