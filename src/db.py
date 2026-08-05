@@ -78,5 +78,5 @@ class ClassesDB():
                 """INSERT INTO classes
                 (name, dow, time, tutor)
                 VALUES (?, ?, ?, ?);
-""", (name, dow, time, tutor)
+                """, (name, dow, time, tutor)
             )

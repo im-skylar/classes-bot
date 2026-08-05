@@ -40,11 +40,6 @@ class ClassesCog(commands.Cog):
             await inter.response.send_message("you need to be a tutor to create classes")
             return
 
-
-        if not dow in range(1, 8):
-            await inter.response.send_message("Day of week needs to be within 1 (Monday) - 7 (Sunday)")
-            return
-
         try:
             t = datetime.time.strptime(time, "%H:%M")
         except ValueError:
@@ -52,10 +47,8 @@ class ClassesCog(commands.Cog):
             return
 
         self.bot.db.add_class(name, dow.value, time, inter.user.id)
+        # maybe return class id here (ooooh maybe use fancy wordhash function!)
         await inter.response.send_message("Added class!")
-        # TODO: dow seems to default to 1 for some reason??
-
-
 
 
 async def setup(bot):
