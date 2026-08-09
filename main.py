@@ -36,7 +36,7 @@ class ClassesBot(commands.Bot):
         self.db = db.ClassesDB(os.getenv("DB_LOCATION"))
         self.db.init_db()
 
-        self.tutor_role_id = int(os.getenv("TUTOR_ROLE"))
+        self.admin_role_id = int(os.getenv("ADMIN_ROLE"))
 
     async def _load_extensions(self) -> None:
         for fn in [
@@ -67,6 +67,7 @@ class ClassesBot(commands.Bot):
             self.logger.info("Synced command tree")
 
     async def close(self) -> None:
+        self.db.close()
         await super().close()
     
     def run(self, *args, **kwargs) -> None:

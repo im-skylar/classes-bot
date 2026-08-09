@@ -3,15 +3,22 @@ import os
 from contextlib import contextmanager
 from typing import Any, Generator
 
-import discord
-
 SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "schema.sql")
 
 class ClassesDB():
     def __init__(self, location: str = ":memory:") -> None:
         self.db_location = location
-        self.con = self._getcon()
+        self.conn = sqlite3.connect(self.db_location)
 
+    def close(self):
+        self.conn.close()
+
+    def commit_or_rollback(self):
+        try:
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     @contextmanager
     def _getcon(self) -> Generator[sqlite3.Connection, Any, None]:
@@ -31,52 +38,54 @@ class ClassesDB():
             with self._getcon() as con:
                 con.executescript(scheme.read())
 
-    def get_classes(self, tutor: discord.User|None = None) -> list[Any]:
-        """List all classes by a specific tutor. 
+    def get_schools(self) -> list[Any]:
+        """List all schools."""
+        cur = self.conn.cursor()
+        cur.execute(
+            "SELECT id, name, capacity FROM schools;")
+        return cur.fetchall()
+
+    def add_school(self, name: str, capacity: int) -> int|None:
+        cur = self.conn.cursor()
+        cur.execute("INSERT INTO schools (name, capacity) VALUES (?, ?);", (name, capacity,))
+        self.commit_or_rollback()
+        return cur.lastrowid
+
+    def update_school(self, id: int, name: str, capacity: int):
+        self.conn.execute("UPDATE schools SET name = ?, capacity = ? WHERE id = ?;", (name, capacity, id,))
+        self.commit_or_rollback()
+
+    def delete_school(self, id: int):
+        """Deletes school. Returns True if school existed, False if no change occured."""
+        cur = self.conn.cursor()
+        cur.execute("UPDATE students SET first_choice = NULL WHERE first_choice = ?;", (id,))
+        cur.execute("UPDATE students SET second_choice = NULL WHERE second_choice = ?;", (id,))
+        cur.execute("DELETE FROM enrollments WHERE school = ?;", (id,))
+        cur.execute("DELETE FROM schools WHERE id = ?;", (id,))
+        self.commit_or_rollback()
+
+    def get_school_name(self, id: int) -> str|None:
+        cur = self.conn.cursor()
+        cur.execute("SELECT name FROM schools WHERE id = ?;", (id,))
+
+        name = cur.fetchone()
+
+        if not name:
+            return None
         
-        Args:
-            tutor: discord id of tutor to look for. leave empty to return all classes"""
-        tutorid = 0
-        list_all = tutor is None
-        if not list_all:
-            tutorid = tutor.id
+        return name[0]
+    
+    def get_school_capacity_and_name(self, id: int) -> tuple[int,str]|None:
+        cur = self.conn.cursor()
+        cur.execute("SELECT capacity, name FROM schools WHERE id = ?;", (id,))
+
+        name = cur.fetchone()
+
+        if not name:
+            return None
         
-        with self._getcon() as con:
-            cur = con.cursor()
-            cur.execute(
-                """SELECT
-                classes.id,
-                classes.name,
-                classes.dow,
-                classes.time,
-                classes.can_enroll,
-                tutors.discord_id 
-                FROM classes
-                INNER JOIN tutors
-                ON classes.tutor = tutors.id
-                WHERE ? = 1
-                OR (tutors.discord_id) = ?;""",
-                (list_all, tutorid,))
-            return cur.fetchall()
+        return name
 
-    def add_tutor_or_ignore(self, id: int) -> int:
-        with self._getcon() as con:
-            con.execute("INSERT OR IGNORE INTO tutors (discord_id) VALUES (?);", (id,))
-            con.commit()
-
-            cur = con.cursor()
-            cur.execute("SELECT id FROM tutors WHERE discord_id = ?;", (id,))
-            return cur.fetchone()[0]
-            
-
-
-    def add_class(self, name: str, dow: int, time: str, tutor_id: int):
-        with self._getcon() as con:
-            tutor = self.add_tutor_or_ignore(tutor_id)
-
-            con.execute(
-                """INSERT INTO classes
-                (name, dow, time, tutor)
-                VALUES (?, ?, ?, ?);
-                """, (name, dow, time, tutor)
-            )
+    def school_exists(self, id: int) -> bool:
+        return self.get_school_capacity_and_name(id) is not None
+    

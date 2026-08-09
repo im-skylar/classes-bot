@@ -1,5 +1,6 @@
 PRAGMA foreign_keys = ON;
 
+/*
 CREATE TABLE IF NOT EXISTS tutors (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     discord_id INTEGER UNIQUE NOT NULL
@@ -27,4 +28,30 @@ CREATE TABLE IF NOT EXISTS student_classes (
     student INTEGER NOT NULL,
     FOREIGN KEY(class) REFERENCES classes (id),
     FOREIGN KEY(student) REFERENCES students (id)
+);
+*/
+--- New Schema:
+
+CREATE TABLE IF NOT EXISTS schools (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    capacity INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS students (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id INTEGER NOT NULL,
+    first_choice INTEGER,
+    second_choice INTEGER,
+    roll INTEGER,
+    priority INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(first_choice, second_choice) REFERENCES classes (id, id)
+);
+
+CREATE TABLE IF NOT EXISTS enrollments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student INTEGER NOT NULL,
+    school INTEGER NOT NULL,
+    FOREIGN KEY (student) REFERENCES students (id),
+    FOREIGN KEY (school) REFERENCES schools (id)
 );
