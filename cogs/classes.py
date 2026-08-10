@@ -73,15 +73,13 @@ class ClassesCog(commands.Cog):
         name="close-applications",
         description="Close applications and sort applicants into schools."
     )
-    async def close_applications(self, inter: discord.Interaction):
+    async def close_applications(self, inter: discord.Interaction, rerun=False):
         if not await self.is_admin(inter):
             return
 
         self.bot.logger.info("Closing applications")
 
-        self.bot.db.assign_aptitudes()
-
-        #await inter.followup.send("Applications closed and aptitudes assigned.")
+        self.bot.db.assign_aptitudes(rerun)
 
         capacities = {School(k): v for k, v in self.bot.db.get_schools()}
 
@@ -93,7 +91,7 @@ class ClassesCog(commands.Cog):
                 self._school_assignment(school, prio, capacities, False)
                 self._school_assignment(school, prio, capacities, True)
 
-        await inter.response.send_message("Enrollments created. Use `/list-enrollments` to list them.")
+        await inter.response.send_message("Enrollments created. Use `/list-enrollments` to list them. You can rerun this command without removing current enrollments. ")
 
     @app_commands.command(
         name="list-enrollments",

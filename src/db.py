@@ -128,8 +128,8 @@ class ClassesDB():
         cur.execute("SELECT first_choice, second_choice FROM students WHERE discord_id = ?;", (discord_id,))
         return cur.fetchone()
 
-    def assign_aptitudes(self):
-        self.conn.execute("UPDATE students SET roll = ABS(RANDOM() % 10000) WHERE first_choice IS NOT NULL;")
+    def assign_aptitudes(self, rerun: bool):
+        self.conn.execute("UPDATE students SET roll = ABS(RANDOM() % 10000) WHERE first_choice IS NOT NULL AND NOT (ROLL = -1 AND ? = 1);", (rerun,))
         self.commit_or_rollback()
 
     def get_schools(self) -> list[tuple[int, int]]:
@@ -139,10 +139,10 @@ class ClassesDB():
 
     def find_applicants(self, prio: int, school: School, limit: int, second_choice = False) -> list[tuple[int]]:
         cur = self.conn.cursor()
-        if not second_choice:
-            cur.execute("SELECT discord_id FROM students WHERE roll >= 10 AND priority = ? AND first_choice = ? ORDER BY roll DESC LIMIT ?;", (prio, school, limit))
-        else:
-            cur.execute("SELECT discord_id FROM students WHERE roll >= 10 AND priority = ? AND second_choice = ? ORDER BY roll DESC LIMIT ?;", (prio, school, limit))
+
+        choice = "first_choice" if not second_choice else "second_choice"
+
+        cur.execute(f"SELECT discord_id FROM students WHERE roll >= 10 AND priority = ? AND {choice} = ? ORDER BY roll DESC LIMIT ?;", (prio, school, limit))
 
         return cur.fetchall()
 
