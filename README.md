@@ -10,9 +10,19 @@ ADMIN_ROLE=1234123412341234
 DB_LOCATION=bot.db
 ```
 
+## how to use
+
+Students can choose their preferred school using `/choose-prefs`, preferably giving 2 answers. If they don't they won't get priority next time. If they don't choose anything (or retract their preferences using `/remove-prefs`) they won't get assigned. They can list their current preferences using `/list-prefs`.
+
+Once the application period closes, admins can use `/close-applications` to generate assignments which favor in order: preference, priority, roll. If applicants don't accept their assignment [TODO!], they will be removed and a space is left for another applicant.
+
+Using `/list-enrollments` a list of all the currently chosen applicants will be outputted. Currently this mentions everyone on that list.
+
+
 
 ## todos
 - [ ] clear enrollments command (or add it to the close appl. command)
 - [ ] reroll command for when users didn't respond to their assignment
+- [ ] maybe an automatic queue for the next applicants
 - [ ] notify users of their results
 - [ ] reset aptitude rng to 0-19
