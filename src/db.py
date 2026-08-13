@@ -119,3 +119,6 @@ class ClassesDB():
         cur.execute("SELECT student FROM enrollments WHERE school = ?;", (school,))
         return [app[0] for app in cur.fetchall()]
 
+    def change_capacity(self, school: School, new_capacity: int):
+        self.conn.execute("UPDATE schools SET capacity = ? WHERE id = ?;", (new_capacity, school,))
+        self.commit_or_rollback()

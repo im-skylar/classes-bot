@@ -110,22 +110,17 @@ class ClassesCog(commands.Cog):
 
         await inter.response.send_message(msg)
 
+    @app_commands.command(
+        name="change-capacity",
+        description="Change the capacity of students for a school"
+    )
+    async def change_capacity(self, inter: discord.Interaction, school: School, new_capacity: app_commands.Range[int, 0, 1000]):
+        if not await self.is_admin(inter):
+            return
 
+        self.bot.db.change_capacity(school, new_capacity)
 
-
-
-
-
-
-        
-        
-
-
-
-
-
-    
-
+        await inter.response.send_message(f"Changed {school.display}s capacity to {new_capacity}.")
 
 async def setup(bot):
     await bot.add_cog(ClassesCog(bot))
