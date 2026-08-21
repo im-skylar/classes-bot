@@ -10,8 +10,11 @@ import discord
 from discord.ext import commands
 
 import src.db as db
+import src.invite as invite
+from src.assignment import AssignmentSys
 
 TZ = datetime.timezone.utc
+
 
 
 class ClassesBot(commands.Bot):
@@ -33,10 +36,19 @@ class ClassesBot(commands.Bot):
         self.synced = False#True#False
         self.EXT_DIR = "cogs"
 
-        self.db = db.ClassesDB(os.getenv("DB_LOCATION"))
+        self.db = db.ClassesDB(self.some_or_error(os.getenv("DB_LOCATION")))
         self.db.init_db()
 
-        self.admin_role_id = int(os.getenv("ADMIN_ROLE"))
+        self.assignments = AssignmentSys(self, self.db)
+
+        self.admin_role_id = int(self.some_or_error(os.getenv("ADMIN_ROLE")))
+
+    def some_or_error(self, x: typing.Any|None) -> typing.Any:
+        if x is None:
+            self.logger.error("Expected some value, not none!")
+            raise FileNotFoundError
+        else:
+            return x
 
     async def _load_extensions(self) -> None:
         for fn in [
@@ -56,10 +68,12 @@ class ClassesBot(commands.Bot):
         self.logger.error(f"Error in {event_method}.\n{traceback.format_exc()}")
 
     async def on_ready(self) -> None:
-        self.logger.info(f"Logged in as {self.user} ({self.user.id})")
+        self.logger.info(f"Logged in as {self.user} ({self.some_or_error(self.user).id})")
 
     async def setup_hook(self) -> None:
         await self._load_extensions()
+        self.add_view(invite.InviteView(self))
+        self.add_view(invite.WaitView(self))
         
         if not self.synced:
             await self.tree.sync()

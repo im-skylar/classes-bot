@@ -5,7 +5,7 @@ from discord.ext import commands
 from src.checks import Checks
 from main import ClassesBot
 from src.db import School
-
+from datetime import timedelta
 
 class ClassesCog(commands.Cog):
     def __init__(self, bot):
@@ -56,42 +56,33 @@ class ClassesCog(commands.Cog):
 
         return await inter.response.send_message(f"Your first choice is \"{School(choices[0]).display}\". Your second choice is \"{School(choices[1]).display}\".\n{self.how_choose}")
 
-    def _school_assignment(self, school: School, prio: int, capacities: dict[School, int], second_choice=False):
-        if capacities[school] <= 0:
-            return
-
-        applicants = self.bot.db.find_applicants(prio, school, capacities[school], second_choice)
+    def _school_assignment(self, school: School, prio: int, second_choice=False):
+        applicants = self.bot.db.find_applicants(prio, school, second_choice)
         self.bot.logger.debug(f"Found applicants {applicants} for school {school} and prio{prio}")
 
-
-        capacities[school] -= len(applicants)
-
         self.bot.db.enroll_applicants(school, [app[0] for app in applicants])
-
 
     @app_commands.command(
         name="close-applications",
         description="Close applications and sort applicants into schools."
     )
-    async def close_applications(self, inter: discord.Interaction, rerun=False):
+    async def close_applications(self, inter: discord.Interaction):
         if not await self.is_admin(inter):
             return
 
         self.bot.logger.info("Closing applications")
 
-        self.bot.db.assign_aptitudes(rerun)
-
-        capacities = {School(k): v for k, v in self.bot.db.get_schools()}
-
-        self.bot.logger.info(f"Detected capacities {capacities}")
+        self.bot.db.assign_aptitudes()
 
         for prio in reversed(range(self.max_prio+1)):
             self.bot.logger.debug(f"Assigning prio {prio}")
             for school in School:
-                self._school_assignment(school, prio, capacities, False)
-                self._school_assignment(school, prio, capacities, True)
+                self._school_assignment(school, prio, False)
+                self._school_assignment(school, prio, True)
 
-        await inter.response.send_message("Enrollments created. Use `/list-enrollments` to list them. You can rerun this command without removing current enrollments. ")
+        # message _everyone_ here
+
+        await inter.response.send_message("Enrollments created. Use `/list-enrollments` to list them.")
 
     @app_commands.command(
         name="list-enrollments",

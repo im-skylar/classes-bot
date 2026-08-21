@@ -19,8 +19,12 @@ CREATE TABLE IF NOT EXISTS students (
 
 CREATE TABLE IF NOT EXISTS enrollments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    student INTEGER NOT NULL,
+    student INTEGER NOT NULL UNIQUE,
     school INTEGER NOT NULL,
+    message_id INTEGER,
+    channel_id INTEGER,
+    status INTEGER NOT NULL DEFAULT 0,
+    expires_on TEXT,
     FOREIGN KEY (student) REFERENCES students (discord_id),
     FOREIGN KEY (school) REFERENCES schools (id)
 );
