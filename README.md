@@ -21,8 +21,9 @@ Using `/list-enrollments` a list of all the currently chosen applicants will be 
 
 
 ## todos
-- [ ] clear enrollments command (or add it to the close appl. command)
-- [ ] reroll command for when users didn't respond to their assignment
-- [ ] maybe an automatic queue for the next applicants
-- [ ] notify users of their results
+- [x] clear enrollments command (or add it to the close appl. command)
+- [x] periodically check for open spaces and notify
+- [x] maybe an automatic queue for the next applicants
+- [x] notify users of their results
 - [ ] reset aptitude rng to 0-19
+- [x] list-applicants not working

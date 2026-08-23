@@ -14,8 +14,6 @@ class ClassesCog(commands.Cog):
 
         self.is_admin = lambda inter: self.checks.has_role(inter, self.bot.admin_role_id, "admin")
 
-        self.max_prio = 3
-
         self.no_2_choices_warning = "If you don't have 2 preferences selected when applications close, you won't get higher priority if you don't get assigned."
         self.how_choose = "You can set these with `/choose-prefs`."
 
@@ -56,12 +54,6 @@ class ClassesCog(commands.Cog):
 
         return await inter.response.send_message(f"Your first choice is \"{School(choices[0]).display}\". Your second choice is \"{School(choices[1]).display}\".\n{self.how_choose}")
 
-    def _school_assignment(self, school: School, prio: int, second_choice=False):
-        applicants = self.bot.db.find_applicants(prio, school, second_choice)
-        self.bot.logger.debug(f"Found applicants {applicants} for school {school} and prio{prio}")
-
-        self.bot.db.enroll_applicants(school, [app[0] for app in applicants])
-
     @app_commands.command(
         name="close-applications",
         description="Close applications and sort applicants into schools."
@@ -72,15 +64,8 @@ class ClassesCog(commands.Cog):
 
         self.bot.logger.info("Closing applications")
 
-        self.bot.db.assign_aptitudes()
-
-        for prio in reversed(range(self.max_prio+1)):
-            self.bot.logger.debug(f"Assigning prio {prio}")
-            for school in School:
-                self._school_assignment(school, prio, False)
-                self._school_assignment(school, prio, True)
-
-        # message _everyone_ here
+        await self.bot.assignments.recreate()
+        await self.bot.assignments.send_initial_invites_and_waits()
 
         await inter.response.send_message("Enrollments created. Use `/list-enrollments` to list them.")
 
@@ -99,7 +84,7 @@ class ClassesCog(commands.Cog):
             msg = msg + "\n".join([f"- <@{app}>" for app in self.bot.db.get_enrollments(school)])
             msg = msg + "\n"
 
-        await inter.response.send_message(msg)
+        await inter.response.send_message(msg, silent=True)
 
     @app_commands.command(
         name="change-capacity",

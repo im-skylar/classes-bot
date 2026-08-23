@@ -7,7 +7,7 @@ import traceback
 from dotenv import load_dotenv
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 import src.db as db
 import src.invite as invite
@@ -46,7 +46,7 @@ class ClassesBot(commands.Bot):
     def some_or_error(self, x: typing.Any|None) -> typing.Any:
         if x is None:
             self.logger.error("Expected some value, not none!")
-            raise FileNotFoundError
+            raise AssertionError
         else:
             return x
 
@@ -80,12 +80,13 @@ class ClassesBot(commands.Bot):
             self.synced = True
             self.logger.info("Synced command tree")
 
+        self.expiry_cleanup.start()
+
     async def close(self) -> None:
         self.db.close()
         await super().close()
     
     def run(self, *args, **kwargs) -> None:
-
         DC_TOKEN = os.getenv("DISCORD")
         if not DC_TOKEN:
             self.logger.error("Missing Discord token, exiting.")
@@ -99,6 +100,17 @@ class ClassesBot(commands.Bot):
         except discord.LoginFailure:
             self.logger.error("Failed to login. Is the token valid?")
             exit(1)
+
+    @tasks.loop(minutes=1)
+    async def expiry_cleanup(self):
+        expired = self.db.get_expired_invites(datetime.datetime.now(TZ))
+
+        for user_id, old_msg in expired:
+            await self.assignments.send_next_invite(user_id, old_msg)
+
+    @expiry_cleanup.before_loop
+    async def before_cleanup(self):
+        await self.wait_until_ready()
 
     @property
     def uptime(self) -> datetime.timedelta:

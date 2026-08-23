@@ -7,6 +7,8 @@ import datetime
 
 SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "schema.sql")
 
+sqlite3.register_adapter(datetime.datetime, lambda x: int(x.timestamp()))
+
 # This has to match the inserts in schema.sql!
 class School(enum.IntEnum):
     Alteration      = 1
@@ -31,6 +33,7 @@ class ClassesDB():
     def __init__(self, location: str = ":memory:") -> None:
         self.db_location = location
         self.conn = sqlite3.connect(self.db_location)
+        self.max_prio = 3
         self.max_roll = 100000 # for testing, set to 20 later
 
     def close(self):
@@ -77,63 +80,39 @@ class ClassesDB():
         if not self.student_exists(discord_id):
             self.add_student(discord_id)
 
-        self.conn.execute("UPDATE students SET first_choice = ?, second_choice = ? WHERE discord_id = ?;", (first_choice, second_choice, discord_id,))
+        self.conn.execute(
+            """UPDATE students SET
+            first_choice = ?,
+            second_choice = ?
+            WHERE discord_id = ?;""",
+            (first_choice, second_choice, discord_id,))
         self.commit_or_rollback()
 
     def get_choices(self, discord_id: int) -> tuple[School|None, School|None]:
         cur = self.conn.cursor()
-        cur.execute("SELECT first_choice, second_choice FROM students WHERE discord_id = ?;", (discord_id,))
+        cur.execute(
+            "SELECT first_choice, second_choice FROM students WHERE discord_id = ?;",
+            (discord_id,))
         return cur.fetchone()
-
-    def assign_aptitudes(self):
-        """Assign aptitude values for studednts with choices set"""
-
-        self.conn.execute("UPDATE students SET roll = ABS(RANDOM() % ?) WHERE first_choice IS NOT NULL AND ROLL <> -1;", (self.max_roll,))
-        self.commit_or_rollback()
 
     def get_schools(self) -> list[tuple[int, int]]:
         cur = self.conn.cursor()
         cur.execute("SELECT id, capacity FROM schools;")
         return cur.fetchall()
 
-    def find_applicants(self, prio: int, school: School, second_choice = False) -> list[tuple[int]]:
-        """Finds all applicants for the specified priority [prio] and school [school] by their {first_choice}, unless [second_choice] is set, then their {second_choice}.
-        
-        Applicants with {roll} == -1 (that already got assigned) won't be assigned a second time."""
-        cur = self.conn.cursor()
-
-        choice = "first_choice" if not second_choice else "second_choice"
-
-        cur.execute(f"SELECT discord_id FROM students WHERE roll >= 0 AND priority = ? AND {choice} = ? ORDER BY roll DESC;", (prio, school))
-
-        return cur.fetchall()
-
-    def enroll_applicants(self, school: School, applicants: list[int]):
-        """Enrolls a list of applicants all to one school, setting their {roll} to -1, marking them as assigned so they won't be assigned again."""
-
-        self.conn.executemany("INSERT INTO enrollments (student, school) VALUES (?, ?);", [(app, school) for app in applicants])
-
-        self.conn.executemany("UPDATE students SET priority = 0, roll = -1 WHERE discord_id = ?;", [(app,) for app in applicants])
-        self.commit_or_rollback()
-
-        # TODO: send invites and waiting messages
-
     def get_enrollments(self, school: School) -> list[int]:
         cur = self.conn.cursor()
+
         cur.execute("""
-        SELECT student
-        FROM enrollments
-        INNER JOIN students ON students.discord_id = enrollments.id
-        WHERE school = ? AND status = 
-        ORDER BY priority DESC, roll DESC
-        LIMIT (SELECT capacity FROM schools WHERE id = ?);""",
-        (school, school,))
+        SELECT discord_id FROM students
+        WHERE enroll_status = ? AND school = ?;
+        """, (Status.Accepted, school,))
+        
         return [app[0] for app in cur.fetchall()]
 
-        # TODO: update to only get accepted enrolls
-
     def change_capacity(self, school: School, new_capacity: int):
-        self.conn.execute("UPDATE schools SET capacity = ? WHERE id = ?;", (new_capacity, school,))
+        self.conn.execute("UPDATE schools SET capacity = ? WHERE id = ?;",
+                          (new_capacity, school,))
         self.commit_or_rollback()
 
     def set_enrollment_status(
@@ -141,18 +120,77 @@ class ClassesDB():
             user_id: int,
             status: Status,
             message: int|None = None,
-            channel: int|None = None,
-            expiry: datetime.datetime|None = None
+            expiry: datetime.datetime|None = None,
+            school: School|None = None
         ):
+        """This updates all the fields of the specified user,
+        **notably NULLing every missing argument!**"""
         self.conn.execute("""
-            UPDATE enrollments
+            UPDATE students
             SET 
-                status = ?,
-                message_id = ?,
-                channel_id = ?,
-                expires_on = ?
-            WHERE student = ?;""",
-            (status, message, channel, expiry, user_id,))
+                enroll_status = ?,
+                invt_msg_id = ?,
+                invt_expires_on = ?,
+                school = ?
+            WHERE discord_id = ?;""",
+            (status, message, expiry, school, user_id,))
         self.commit_or_rollback()
 
+    def accept_enrollment(self, user_id: int):
+        self.conn.execute("""
+            UPDATE students SET
+                enroll_status = ?,
+                priority = MAX(0, priority-1),
+                invt_msg_id = NULL,
+                invt_expires_on = NULL
+            WHERE discord_id = ?;""", (Status.Accepted, user_id,))
+        self.commit_or_rollback()
+
+    def reset_enrolls(self):
+        self.conn.execute("""
+            UPDATE students
+            SET
+                priority = MIN(?+1, priority+1),
+                roll = RANDOM() % ?,
+                school = NULL,
+                enroll_status = ?,
+                invt_msg_id = NULL,
+                invt_expires_on = NULL;
+        """, (self.max_prio, self.max_roll, Status.Unsent))
+
+        self.commit_or_rollback()
     
+    def get_queue(self, school: School, count: int, status: Status):
+        cur = self.conn.cursor()
+
+        cur.execute("""
+        SELECT DISTINCT discord_id
+        FROM queue
+        WHERE enroll_status = ? AND school = ?
+        ORDER BY position ASC
+        LIMIT ?;""", (status, school, count,))
+
+        return [x[0] for x in cur.fetchall()]
+
+    def get_users_school(self, id: int) -> School|None:
+        cur = self.conn.cursor()
+
+        cur.execute("SELECT school FROM students WHERE discord_id = ?;", (id,))
+
+        # I think these Index None but it might be okay, bc there's no situation
+        # when we might fetch a user not present in the db yet.
+        return cur.fetchone()[0] 
+
+    def get_users_message(self, id: int) -> int|None:
+        cur = self.conn.cursor()
+        cur.execute("SELECT invt_msg_id FROM students WHERE discord_id = ?;", (id,))
+
+        return cur.fetchone()[0]
+
+    def get_expired_invites(self, as_of: datetime.datetime) -> list[tuple[int, int]]:
+        """Returns `discord_id` and `invt_msg_id`"""
+        cur = self.conn.cursor()
+        cur.execute("""
+            SELECT discord_id, invt_msg_id FROM students WHERE invt_expires_on < ?;
+        """, (as_of,))
+        return cur.fetchall()
