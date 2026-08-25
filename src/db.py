@@ -4,6 +4,8 @@ from contextlib import contextmanager
 from typing import Any, Generator
 import enum
 import datetime
+import csv
+import io
 
 SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "schema.sql")
 
@@ -28,12 +30,17 @@ class Status(enum.IntEnum):
     Denied   = 3
     Expired  = 4
     Waiting  = 5 # student is waiting for queue
+    @property
+    def display(self):
+        return self.name
+
+MAX_PRIO = 3
 
 class ClassesDB():
     def __init__(self, location: str = ":memory:") -> None:
         self.db_location = location
         self.conn = sqlite3.connect(self.db_location)
-        self.max_prio = 3
+        self.max_prio = MAX_PRIO
         self.pass_amount = 10
         self.max_roll = 20 # for testing, set to 20 later
 
@@ -148,7 +155,7 @@ class ClassesDB():
         self.conn.execute("""
             UPDATE students SET
                 enroll_status = ?,
-                priority = MAX(0, priority-1),
+                priority = 0,
                 invt_msg_id = NULL,
                 invt_expires_on = NULL
             WHERE discord_id = ?;""", (Status.Accepted, user_id,))
@@ -158,13 +165,19 @@ class ClassesDB():
         self.conn.execute("""
             UPDATE students
             SET
-                priority = MIN(?+1, priority+1),
                 roll = RANDOM() % ?,
                 school = NULL,
                 enroll_status = ?,
                 invt_msg_id = NULL,
                 invt_expires_on = NULL;
-        """, (self.max_prio, self.max_roll, Status.Unsent))
+                
+            UPDATE students
+            SET
+                priority = MIN(?+1, priority+1)
+            WHERE
+                first_choice <> NULL AND
+                second_choice <> NULL;
+        """, (self.max_roll, Status.Unsent, self.max_prio))
 
         self.commit_or_rollback()
     
@@ -202,3 +215,49 @@ class ClassesDB():
             SELECT discord_id, invt_msg_id FROM students WHERE invt_expires_on < ?;
         """, (as_of,))
         return cur.fetchall()
+
+    def csv_export(self):
+        cur = self.conn.cursor()
+        cur.execute("""
+        SELECT discord_id, first_choice, second_choice, priority, roll, school, enroll_status FROM students;
+        """)
+
+        def ds(x: int | None) -> str:
+            """Display school or none"""
+            if x is None:
+                return ""
+            return School(x).display
+
+        def dst(x: int | None) -> str:
+            """Display Status or none"""
+            if x is None:
+                return ""
+            return Status(x).display
+        
+        flike = io.StringIO()
+        writer = csv.writer(flike)
+        writer.writerow(("discord_id", "first_choice", "second_choice", "priority", "roll", "school", "status"))
+
+        while row := cur.fetchone():
+            (id, fc, sc, prio, roll, sch, stat) = row
+            writer.writerow((
+                id,
+                ds(fc),
+                ds(sc),
+                prio,
+                roll,
+                ds(sch),
+                dst(stat)))
+
+        return flike
+
+
+    def set_priority(self, discord_id: int, prio: int):
+        if not self.student_exists(discord_id):
+            self.add_student(discord_id)
+
+        rows = self.conn.execute("UPDATE students SET priority = ? WHERE discord_id = ?", (discord_id, prio)).rowcount
+
+        self.commit_or_rollback()
+
+        return rows

@@ -64,6 +64,7 @@ class AssignmentSys:
         if old_msg_id is not None:
             user = await self.bot.fetch_user(user_id)
             old_msg = await user.fetch_message(old_msg_id)
+            self.db.set_enrollment_status(user_id, Status.Expired)
             await old_msg.edit(content="Your invite expired.", view=None)
 
         nextq = self.db.get_queue(school, 1, Status.Waiting)

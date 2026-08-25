@@ -4,8 +4,10 @@ from discord.ext import commands
 
 from src.checks import Checks
 from main import ClassesBot
-from src.db import School
+from src.db import School, MAX_PRIO
 from datetime import timedelta
+
+import io
 
 class ClassesCog(commands.Cog):
     def __init__(self, bot):
@@ -87,6 +89,21 @@ class ClassesCog(commands.Cog):
         await inter.response.send_message(msg, silent=True)
 
     @app_commands.command(
+        name="gen-csv",
+        description="generate a csv from the database"
+    )
+    async def gen_csv(self, inter: discord.Interaction):
+        if not await self.is_admin(inter):
+            return
+
+        csv_data = self.bot.db.csv_export()
+        csv_export = discord.File(io.BytesIO(csv_data.getvalue().encode("utf-8")), filename="export.csv") # fuck i hate this
+
+        await inter.user.send(file=csv_export)
+
+        await inter.response.send_message("An export was sent to you via DM.")
+
+    @app_commands.command(
         name="change-capacity",
         description="Change the capacity of students for a school"
     )
@@ -97,6 +114,20 @@ class ClassesCog(commands.Cog):
         self.bot.db.change_capacity(school, new_capacity)
 
         await inter.response.send_message(f"Changed {school.display}s capacity to {new_capacity}.")
+
+    @app_commands.command(
+        name="change-priority",
+        description="Change the priority of a student"
+    )
+    async def change_priority(self, inter: discord.Interaction, user: discord.Member, new_priority: app_commands.Range[int, 0, MAX_PRIO]):
+        if not await self.is_admin(inter):
+            return
+
+        updated = self.bot.db.set_priority(inter.user.id, new_priority)
+
+        resp = "priority updated." if updated > 0 else "User could not be found (nani? this should be impossible :thinking:), no priorities updated."
+
+        await inter.response.send_message(resp)
 
 async def setup(bot):
     await bot.add_cog(ClassesCog(bot))

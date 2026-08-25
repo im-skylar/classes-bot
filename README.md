@@ -41,12 +41,13 @@ As of right now, the bot is server-agnostic, meaning that if is added to multipl
 - [x] periodically check for open spaces and notify
 - [x] maybe an automatic queue for the next applicants
 - [x] notify users of their results
-- [ ] reset aptitude rng to 0-19
+- [x] reset aptitude rng to 0-19
 - [x] list-applicants not working
 - [ ] handle deleted users
-- [ ] csv export (with priorities listed)
-- [ ] bug: users without preferences gain priority
-- [ ] priority reset
-- [ ] add /change-priority admin command
+- [x] csv export (with priorities listed)
+- [x] bug: users without preferences gain priority
+- [x] priority reset
+- [x] add /change-priority admin command
 - [ ] reinsert minimum roll
 - [ ] bug: handle crash during initial sending
+- [ ] disallow commands via DM
