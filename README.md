@@ -34,7 +34,7 @@ Once the application period closes, admins can use `/close-applications` to gene
 
 Using `/list-enrollments` a list of all the currently chosen applicants will be outputted.
 
-
+As of right now, the bot is server-agnostic, meaning that if is added to multiple servers, it will treat them as if it were one big one. Since role IDs are unique, admin actions can only be executed on one server but will effect the state of the bot for all servers (as do any other actions). I strongly recommend running multiple instances for different servers. 
 
 ## Todos
 - [x] clear enrollments command (or add it to the close appl. command)
@@ -43,3 +43,10 @@ Using `/list-enrollments` a list of all the currently chosen applicants will be 
 - [x] notify users of their results
 - [ ] reset aptitude rng to 0-19
 - [x] list-applicants not working
+- [ ] handle deleted users
+- [ ] csv export (with priorities listed)
+- [ ] bug: users without preferences gain priority
+- [ ] priority reset
+- [ ] add /change-priority admin command
+- [ ] reinsert minimum roll
+- [ ] bug: handle crash during initial sending

@@ -34,7 +34,8 @@ class ClassesDB():
         self.db_location = location
         self.conn = sqlite3.connect(self.db_location)
         self.max_prio = 3
-        self.max_roll = 100000 # for testing, set to 20 later
+        self.pass_amount = 10
+        self.max_roll = 20 # for testing, set to 20 later
 
     def close(self):
         self.conn.close()
@@ -95,9 +96,16 @@ class ClassesDB():
             (discord_id,))
         return cur.fetchone()
 
-    def get_schools(self) -> list[tuple[int, int]]:
+    def get_capacities(self) -> list[tuple[int, int]]:
+        """Returns how many seats are left for each school"""
         cur = self.conn.cursor()
-        cur.execute("SELECT id, capacity FROM schools;")
+        cur.execute("""SELECT
+        id,
+        capacity - (
+            SELECT COUNT(*) FROM students
+            WHERE school = id AND (enroll_status = ? OR enroll_status = ?)
+        ) AS capacity_left
+        FROM schools;""", (Status.Pending, Status.Accepted))
         return cur.fetchall()
 
     def get_enrollments(self, school: School) -> list[int]:
@@ -112,7 +120,7 @@ class ClassesDB():
 
     def change_capacity(self, school: School, new_capacity: int):
         self.conn.execute("UPDATE schools SET capacity = ? WHERE id = ?;",
-                          (new_capacity, school,))
+            (new_capacity, school,))
         self.commit_or_rollback()
 
     def set_enrollment_status(

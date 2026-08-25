@@ -28,7 +28,7 @@ class ClassesCog(commands.Cog):
 
         self.bot.db.update_choices(inter.user.id, first_choice, second_choice)
 
-        return await inter.response.send_message("Your choices were updated.\nYou can change them any time by calling this command again or using `/remove-prefs` if you don't want to be assigned next semester.\n"+self.no_2_choices_warning)
+        return await inter.response.send_message("Your choices were updated.\nYou can change them any time by calling this command again or using `/remove-prefs` if you don't want to be assigned next semester.\n**Important:** Make sure your DMs are open for this server! Otherwise you won't get notified once applications close.\n"+self.no_2_choices_warning)
 
     @app_commands.command(
         name="remove-prefs",

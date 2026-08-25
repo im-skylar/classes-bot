@@ -108,6 +108,8 @@ class ClassesBot(commands.Bot):
         for user_id, old_msg in expired:
             await self.assignments.send_next_invite(user_id, old_msg)
 
+        # make sure empty slots are filled up
+
     @expiry_cleanup.before_loop
     async def before_cleanup(self):
         await self.wait_until_ready()

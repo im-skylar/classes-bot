@@ -5,6 +5,8 @@ from src.db import Status, School
 
 import datetime
 
+import discord
+
 def prettydate(x: datetime.datetime) -> str:
     return x.strftime("%a. %Y-%m-%d %H:%M %Z")
 
@@ -39,13 +41,19 @@ class AssignmentSys:
         expires_at = datetime.datetime.now(main.TZ) + self.invite_timeout
 
         view = invite.InviteView(self.bot)
-        msg = await user.send(
-            f"You have been selected to join {school.display}. "
-            f"Please accept or decline by {prettydate(expires_at)} or your place will go to the next person.",
-            view=view
-        )
+        try:
+            msg = await user.send(
+                f"You have been selected to join {school.display}. "
+                f"Please accept or decline by {prettydate(expires_at)} or your place will go to the next person.",
+                view=view
+            )
 
-        self.db.set_enrollment_status(user_id, Status.Pending, msg.id, expiry=expires_at, school=school)
+            self.db.set_enrollment_status(user_id, Status.Pending, msg.id, expiry=expires_at, school=school)
+        except discord.Forbidden:
+            self.bot.logger.info(f"user {user_id} had their DMs closed during assignment")
+            # TODO: Mark them as denied
+            await self.send_next_invite(user_id=user_id)
+
 
     async def send_next_invite(self, user_id: int, old_msg_id: int|None = None):
         school = self.db.get_users_school(user_id)
@@ -71,12 +79,12 @@ class AssignmentSys:
 
     async def send_initial_invites_and_waits(self):
         # send invites
-        for s, capacity in self.db.get_schools():
+        for s, capacity in self.db.get_capacities():
             for student in self.db.get_queue(School(s), capacity, Status.Unsent):
                 await self.send_invite_and_set_status(student, School(s))
 
         # send wait messages
-        for s, _ in self.db.get_schools():
-            for student in self.db.get_queue(School(s), 1000000000, Status.Unsent):
+        for s, _ in self.db.get_capacities():
+            for student in self.db.get_queue(School(s), count=1000000000, status=Status.Unsent):
                 await self.send_wait_msg_and_set_status(student)
 
