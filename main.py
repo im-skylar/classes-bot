@@ -16,7 +16,6 @@ from src.assignment import AssignmentSys
 TZ = datetime.timezone.utc
 
 
-
 class ClassesBot(commands.Bot):
     _uptime = datetime.datetime.now(TZ)
 
@@ -29,12 +28,12 @@ class ClassesBot(commands.Bot):
             *args,
             **kwargs,
             command_prefix=commands.when_mentioned_or(""),
-            intents=intents
+            intents=intents,
         )
 
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.synced = False#True#False
-        self.EXT_DIR = "cogs"
+        self.synced = False
+        self.ext_dir = "cogs"
 
         self.db = db.ClassesDB(self.some_or_error(os.getenv("DB_LOCATION")))
         self.db.init_db()
@@ -43,7 +42,7 @@ class ClassesBot(commands.Bot):
 
         self.admin_role_id = int(self.some_or_error(os.getenv("ADMIN_ROLE")))
 
-    def some_or_error(self, x: typing.Any|None) -> typing.Any:
+    def some_or_error(self, x: typing.Any | None) -> typing.Any:
         if x is None:
             self.logger.error("Expected some value, not none!")
             raise AssertionError
@@ -52,29 +51,35 @@ class ClassesBot(commands.Bot):
 
     async def _load_extensions(self) -> None:
         for fn in [
-            f"{self.EXT_DIR}.{x[:-3]}"
-            for x
-            in os.listdir(self.EXT_DIR)
-            if x.endswith(".py")
-            and not x.startswith("_")]:
+            f"{self.ext_dir}.{x[:-3]}"
+            for x in os.listdir(self.ext_dir)
+            if x.endswith(".py") and not x.startswith("_")
+        ]:
             try:
                 await self.load_extension(fn)
-                self.logger.info(f"Loaded extension {fn}")
+                self.logger.info("Loaded extension %s", fn)
             except commands.ExtensionError:
-                self.logger.error(f"Failed to load extension {fn}\n{traceback.format_exc()}")
-
+                self.logger.error(
+                    "Failed to load extension %s\n%s",
+                    fn,
+                    traceback.format_exc(),
+                )
 
     async def on_error(self, event_method: str, /, *args, **kwargs) -> None:
-        self.logger.error(f"Error in {event_method}.\n{traceback.format_exc()}")
+        self.logger.error(
+            "Error in %s.\n%s", event_method, traceback.format_exc()
+        )
 
     async def on_ready(self) -> None:
-        self.logger.info(f"Logged in as {self.user} ({self.some_or_error(self.user).id})")
+        self.logger.info(
+            "Logged in as %s (%s)", self.user, self.some_or_error(self.user).id
+        )
 
     async def setup_hook(self) -> None:
         await self._load_extensions()
         self.add_view(invite.InviteView(self))
         self.add_view(invite.WaitView(self))
-        
+
         if not self.synced:
             await self.tree.sync()
             self.synced = True
@@ -85,16 +90,16 @@ class ClassesBot(commands.Bot):
     async def close(self) -> None:
         self.db.close()
         await super().close()
-    
+
     def run(self, *args, **kwargs) -> None:
-        DC_TOKEN = os.getenv("DISCORD")
-        if not DC_TOKEN:
+        dc_token = os.getenv("DISCORD")
+        if not dc_token:
             self.logger.error("Missing Discord token, exiting.")
             exit(1)
 
         try:
-            super().run(DC_TOKEN, *args, **kwargs)
-        except (KeyboardInterrupt):
+            super().run(dc_token, *args, **kwargs)
+        except KeyboardInterrupt:
             self.logger.info("Exiting.")
             exit()
         except discord.LoginFailure:
@@ -118,14 +123,15 @@ class ClassesBot(commands.Bot):
     def uptime(self) -> datetime.timedelta:
         return datetime.datetime.now(TZ) - self._uptime
 
+
 def main() -> None:
     logging.basicConfig(
-        level=logging.INFO,
-        format=f"[%(asctime)s] %(levelname)s: %(message)s"
+        level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s"
     )
 
     bot = ClassesBot()
     bot.run()
+
 
 if __name__ == "__main__":
     main()

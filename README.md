@@ -48,6 +48,6 @@ As of right now, the bot is server-agnostic, meaning that if is added to multipl
 - [x] bug: users without preferences gain priority
 - [x] priority reset
 - [x] add /change-priority admin command
-- [ ] reinsert minimum roll
+- [x] reinsert minimum roll
 - [ ] bug: handle crash during initial sending
-- [ ] disallow commands via DM
+- [x] disallow commands via DM (solution: only disallow commands that need admin privileges, since it's the only time, server info is used)

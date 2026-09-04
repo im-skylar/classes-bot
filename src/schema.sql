@@ -3,7 +3,7 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS schools (
     id INTEGER PRIMARY KEY,
     capacity INTEGER NOT NULL
-);
+) STRICT;
 
 -- This has to match the "School" enum in db.py
 INSERT OR IGNORE INTO schools (id, capacity)
@@ -17,17 +17,17 @@ CREATE TABLE IF NOT EXISTS students (
     
     -- Whether this person should be assigned before the others
     priority        INTEGER NOT NULL DEFAULT 0,
-    roll            INTEGER DEFAULT NONE,
+    roll            INTEGER,
 
-    school          INTEGER DEFAULT NONE,
-    enroll_status   INTEGER DEFAULT NONE, -- references "Status" enum in db.py
+    school          INTEGER,
+    enroll_status   INTEGER, -- references "Status" enum in db.py
 
-    invt_msg_id     INTEGER DEFAULT NONE,
-    invt_expires_on INTEGER DEFAULT NONE, -- UNIX time
+    invt_msg_id     INTEGER,
+    invt_expires_on INTEGER, -- UNIX time
 
-    FOREIGN KEY (first_choice, second_choice)
-    REFERENCES classes (id, id)
-);
+    FOREIGN KEY (first_choice) REFERENCES schools (id)
+    FOREIGN KEY (second_choice) REFERENCES schools (id)
+) STRICT;
 
 CREATE VIEW IF NOT EXISTS queue AS
 SELECT

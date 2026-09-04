@@ -1,64 +1,111 @@
+import io
+
 import discord
 from discord import app_commands
 from discord.ext import commands
 
-from src.checks import Checks
 from main import ClassesBot
+from src.checks import Checks
 from src.db import School, MAX_PRIO
-from datetime import timedelta
 
-import io
 
 class ClassesCog(commands.Cog):
     def __init__(self, bot):
         self.bot: ClassesBot = bot
         self.checks = Checks()
 
-        self.is_admin = lambda inter: self.checks.has_role(inter, self.bot.admin_role_id, "admin")
+        self.is_admin = lambda inter: self.checks.has_role(
+            inter, self.bot.admin_role_id, "admin"
+        )
 
-        self.no_2_choices_warning = "If you don't have 2 preferences selected when applications close, you won't get higher priority if you don't get assigned."
+        self.no_2_choices_warning = (
+            "If you don't have 2 preferences selected when applications close, "
+            "you won't get higher priority if you don't get assigned."
+        )
         self.how_choose = "You can set these with `/choose-prefs`."
-
 
     @app_commands.command(
         name="choose-prefs",
-        description="Choose which school you'd prefer to enroll in. (Giving no second choice decreases your chances)"
+        description="Choose which school you'd prefer to enroll in",
     )
-    async def select_enrollment_choice(self, inter: discord.Interaction, first_choice: School, second_choice: School|None):
+    async def select_enrollment_choice(
+        self,
+        inter: discord.Interaction,
+        first_choice: School,
+        second_choice: School | None,
+    ):
+
         if first_choice == second_choice:
-            return await inter.response.send_message("Please choose two different schools or leave the second choice empty, if there's only one school you'd like to enroll in.")
+            return await inter.response.send_message(
+                (
+                    "Please choose two different schools or leave the second choice "
+                    "empty, if there's only one school you'd like to enroll in."
+                )
+            )
 
         self.bot.db.update_choices(inter.user.id, first_choice, second_choice)
 
-        return await inter.response.send_message("Your choices were updated.\nYou can change them any time by calling this command again or using `/remove-prefs` if you don't want to be assigned next semester.\n**Important:** Make sure your DMs are open for this server! Otherwise you won't get notified once applications close.\n"+self.no_2_choices_warning)
+        return await inter.response.send_message(
+            (
+                "Your choices were updated.\nYou can change them any time by calling "
+                "this command again or using `/remove-prefs` if you don't want to be "
+                "assigned next semester.\n**Important:** Make sure your DMs are open "
+                "for this server! Otherwise you won't get notified once applications "
+                "close.\n"
+            )
+            + self.no_2_choices_warning
+        )
 
     @app_commands.command(
         name="remove-prefs",
-        description="Retract you preferences. You won't get assigned next semester and won't gain priority."
+        description="Retract you preferences",
     )
     async def remove_enrollment_choices(self, inter: discord.Interaction):
         self.bot.db.update_choices(inter.user.id, None, None)
 
-        return await inter.response.send_message("Your choices were removed. You won't get assigned this semester.\nYou can add them again by calling `/choose-prefs`.\n"+self.no_2_choices_warning)
+        return await inter.response.send_message(
+            (
+                "Your choices were removed. You won't get assigned this semester."
+                "You can add them again by calling `/choose-prefs`.\n"
+            )
+            + self.no_2_choices_warning
+        )
 
     @app_commands.command(
-        name="list-prefs",
-        description="List your current preferences"
+        name="list-prefs", description="List your current preferences"
     )
     async def list_enrollment_choices(self, inter: discord.Interaction):
         choices = self.bot.db.get_choices(inter.user.id)
 
         if choices is None or choices == (None, None):
-            return await inter.response.send_message("You don't have any preferences set.\nYou can add them with `/choose-prefs`.\n"+self.no_2_choices_warning)
+            return await inter.response.send_message(
+                (
+                    "You don't have any preferences set.\nYou can add them with"
+                    " `/choose-prefs`.\n"
+                )
+                + self.no_2_choices_warning
+            )
 
         if choices[1] is None:
-            return await inter.response.send_message(f"Your first choice is \"{School(choices[0]).display}\". You don't have a second choice set.\n{self.how_choose} "+self.no_2_choices_warning)
+            return await inter.response.send_message(
+                (
+                    f'Your first choice is "{School(choices[0]).display}". '
+                    f"You don't have a second choice set.\n{self.how_choose} "
+                    f"{self.no_2_choices_warning}"
+                )
+            )
 
-        return await inter.response.send_message(f"Your first choice is \"{School(choices[0]).display}\". Your second choice is \"{School(choices[1]).display}\".\n{self.how_choose}")
+        return await inter.response.send_message(
+            (
+                f'Your first choice is "{School(choices[0]).display}". '
+                f'Your second choice is "{School(choices[1]).display}". '
+                f"{self.how_choose}"
+            )
+        )
 
     @app_commands.command(
         name="close-applications",
-        description="Close applications and sort applicants into schools."
+        description="Close applications and sort applicants into schools.",
     )
     async def close_applications(self, inter: discord.Interaction):
         if not await self.is_admin(inter):
@@ -69,11 +116,13 @@ class ClassesCog(commands.Cog):
         await self.bot.assignments.recreate()
         await self.bot.assignments.send_initial_invites_and_waits()
 
-        await inter.response.send_message("Enrollments created. Use `/list-enrollments` to list them.")
+        await inter.response.send_message(
+            "Enrollments created. Use `/list-enrollments` to list them."
+        )
 
     @app_commands.command(
         name="list-enrollments",
-        description="list all the enrollments generated (pinging all enrolled people)"
+        description="list all the enrollments generated",
     )
     async def list_enrollments(self, inter: discord.Interaction):
         if not await self.is_admin(inter):
@@ -83,21 +132,25 @@ class ClassesCog(commands.Cog):
         for school in School:
             msg = msg + f"**{school.display}:**\n"
 
-            msg = msg + "\n".join([f"- <@{app}>" for app in self.bot.db.get_enrollments(school)])
+            msg = msg + "\n".join(
+                [f"- <@{app}>" for app in self.bot.db.get_enrollments(school)]
+            )
             msg = msg + "\n"
 
         await inter.response.send_message(msg, silent=True)
 
     @app_commands.command(
-        name="gen-csv",
-        description="generate a csv from the database"
+        name="gen-csv", description="Generate a csv from the database"
     )
     async def gen_csv(self, inter: discord.Interaction):
         if not await self.is_admin(inter):
             return
 
         csv_data = self.bot.db.csv_export()
-        csv_export = discord.File(io.BytesIO(csv_data.getvalue().encode("utf-8")), filename="export.csv") # fuck i hate this
+        csv_export = discord.File(
+            io.BytesIO(csv_data.getvalue().encode("utf-8")),
+            filename="export.csv",
+        )  # fuck i hate this
 
         await inter.user.send(file=csv_export)
 
@@ -105,29 +158,48 @@ class ClassesCog(commands.Cog):
 
     @app_commands.command(
         name="change-capacity",
-        description="Change the capacity of students for a school"
+        description="Change the capacity of students for a school",
     )
-    async def change_capacity(self, inter: discord.Interaction, school: School, new_capacity: app_commands.Range[int, 0, 1000]):
+    async def change_capacity(
+        self,
+        inter: discord.Interaction,
+        school: School,
+        new_capacity: app_commands.Range[int, 0, 1000],
+    ):
         if not await self.is_admin(inter):
             return
 
         self.bot.db.change_capacity(school, new_capacity)
 
-        await inter.response.send_message(f"Changed {school.display}s capacity to {new_capacity}.")
+        await inter.response.send_message(
+            f"Changed {school.display}s capacity to {new_capacity}."
+        )
 
     @app_commands.command(
-        name="change-priority",
-        description="Change the priority of a student"
+        name="change-priority", description="Change the priority of a student"
     )
-    async def change_priority(self, inter: discord.Interaction, user: discord.Member, new_priority: app_commands.Range[int, 0, MAX_PRIO]):
+    async def change_priority(
+        self,
+        inter: discord.Interaction,
+        user: discord.Member,
+        new_priority: app_commands.Range[int, 0, MAX_PRIO],
+    ):
         if not await self.is_admin(inter):
             return
 
-        updated = self.bot.db.set_priority(inter.user.id, new_priority)
+        updated = self.bot.db.set_priority(user.id, new_priority)
 
-        resp = "priority updated." if updated > 0 else "User could not be found (nani? this should be impossible :thinking:), no priorities updated."
+        resp = (
+            "priority updated."
+            if updated > 0
+            else (
+                "User could not be found (nani? this should be impossible :thinking:), "
+                "no priorities updated."
+            )
+        )
 
         await inter.response.send_message(resp)
+
 
 async def setup(bot):
     await bot.add_cog(ClassesCog(bot))
