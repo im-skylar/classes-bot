@@ -68,9 +68,14 @@ class AssignmentSys:
             await self.send_next_invite(user_id=user_id)
 
     async def send_next_invite(
-        self, user_id: int, old_msg_id: int | None = None
+        self,
+        user_id: int,
+        old_msg_id: int | None = None,
+        school: School | None = None,
     ):
-        school = self.db.get_users_school(user_id)
+
+        if school is None:
+            school = self.db.get_users_school(user_id)
 
         if school is None:
             raise AssertionError

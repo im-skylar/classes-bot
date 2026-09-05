@@ -1,0 +1,18 @@
+digraph {
+  Denied [shape=doublecircle]
+  Accepted [shape=doublecircle]
+    
+  Unsent -> Pending [label = "top of queue", style="dashed"]
+  Unsent -> Waiting [label = "later in queue", style="dashed"]
+  Unsent -> Denied [label = "magica fail, DMs closed", style="dashed"]
+  
+  Pending -> Accepted [label = "accept"]
+  Pending -> Denied [label = "decline"]
+  Pending -> Denied [label = "expire", style="dashed"]
+  
+  Waiting -> Pending [label = "queue move", style="dashed"]
+  Waiting -> Denied [label = "decline"]
+
+  labelloc="t";
+  label="dashed transitions have to be triggered by the bot";
+}

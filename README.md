@@ -51,3 +51,6 @@ As of right now, the bot is server-agnostic, meaning that if is added to multipl
 - [x] reinsert minimum roll
 - [ ] bug: handle crash during initial sending
 - [x] disallow commands via DM (solution: only disallow commands that need admin privileges, since it's the only time, server info is used)
+
+## Developing Notes
+![Status State Machine](./status_statemachine.svg)

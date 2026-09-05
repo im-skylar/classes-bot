@@ -42,7 +42,7 @@ class ClassesDB:
         self.db_location = location
         self.conn = sqlite3.connect(self.db_location)
         self.max_prio = MAX_PRIO
-        self.pass_amount = 10
+        self.pass_amount = 0  # TODO: Testing value, reset later
         self.max_roll = 20  # for testing, set to 20 later
 
     def close(self):
