@@ -10,7 +10,7 @@ digraph {
   Pending -> Denied [label = "decline"]
   Pending -> Denied [label = "expire", style="dashed"]
   
-  Waiting -> Pending [label = "queue move", style="dashed"]
+  Waiting -> Pending [label = "top of queue", style="dashed"]
   Waiting -> Denied [label = "decline"]
 
   labelloc="t";

@@ -85,7 +85,7 @@ class ClassesBot(commands.Bot):
             self.synced = True
             self.logger.info("Synced command tree")
 
-        self.expiry_cleanup.start()
+        self.expiry_cleanup.start()  # TODO: respect DB state
 
     async def close(self) -> None:
         self.db.close()
@@ -108,12 +108,7 @@ class ClassesBot(commands.Bot):
 
     @tasks.loop(minutes=1)
     async def expiry_cleanup(self):
-        expired = self.db.get_expired_invites(datetime.datetime.now(TZ))
-
-        for user_id, old_msg in expired:
-            await self.assignments.send_next_invite(user_id, old_msg)
-
-        # make sure empty slots are filled up
+        await self.assignments.advance_states()
 
     @expiry_cleanup.before_loop
     async def before_cleanup(self):

@@ -1,5 +1,12 @@
 PRAGMA foreign_keys = ON;
 
+CREATE TABLE IF NOT EXISTS bot_state (
+    k TEXT PRIMARY KEY,
+    v ANY
+) STRICT;
+
+INSERT OR IGNORE INTO bot_state (k, v) VALUES ('ASSIGNMENTS_CLEANUP_RUNNING', 0);
+
 CREATE TABLE IF NOT EXISTS schools (
     id INTEGER PRIMARY KEY,
     capacity INTEGER NOT NULL
@@ -36,7 +43,7 @@ SELECT
     enroll_status,
     ROW_NUMBER() OVER (
         PARTITION BY school
-        ORDER BY priority DESC, choice_rank ASC, roll ASC
+        ORDER BY priority DESC, choice_rank ASC, roll DESC
     ) AS position
 FROM (
     SELECT

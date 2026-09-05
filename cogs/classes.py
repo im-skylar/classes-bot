@@ -113,12 +113,14 @@ class ClassesCog(commands.Cog):
 
         self.bot.logger.info("Closing applications")
 
-        await self.bot.assignments.recreate()
-        await self.bot.assignments.send_initial_invites_and_waits()
-
         await inter.response.send_message(
-            "Enrollments created. Use `/list-enrollments` to list them."
+            "Enrollments created. People will now gradually receive invites. "
+            "Use `/list-enrollments` to list who has accepted."
         )
+
+        await self.bot.assignments.recreate()
+        await self.bot.assignments.advance_states()
+
 
     @app_commands.command(
         name="list-enrollments",

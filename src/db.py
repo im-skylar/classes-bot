@@ -4,34 +4,58 @@ import enum
 import datetime
 import csv
 import io
+from typing import Any
 
 SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "schema.sql")
 
 sqlite3.register_adapter(datetime.datetime, lambda x: int(x.timestamp()))
 
 
-# This has to match the inserts in schema.sql!
+def type_or_none(t: type, x: None | tuple[Any]) -> None | Any:
+    """If `x` is a tuple with at least one value, return the first value, converted into `t`.
+    Otherwise return `None`"""
+    if x is None:
+        return None
+
+    if x == tuple():
+        return None
+
+    return t(x[0])
+
+
+# Changing School and Status Enums requires the active DB to change as well!
 class School(enum.IntEnum):
-    Alteration      = 1
-    Conjuration     = 2
-    Illusion        = 3
-    Restoration     = 4
+    Alteration = 1
+    Conjuration = 2
+    Illusion = 3
+    Restoration = 4
     General_Studies = 5
 
     @property
     def display(self):
         return self.name.replace("_", " ")
 
+
 class Status(enum.IntEnum):
-    Unsent   = 0
-    Pending  = 1 # waiting for reply
-    Accepted = 2
-    Denied   = 3
-    Expired  = 4
-    Waiting  = 5 # student is waiting for queue
+    """Represents the state of a students assignment.
+
+    See the state machine SVG for how these are supposed to work
+    """
+
+    Unsent = 0
+    Waiting = 1  # student is waiting for queue
+    Pending = 2  # waiting for reply
+    Accepted = 3
+    Denied = 4  # / Expired / DMs closed
+
     @property
     def display(self):
         return self.name
+
+
+# Valid BotState Keys
+class BotState(enum.Enum):
+    ASSIGNMENTS_CLEANUP_RUNNING = bool
 
 
 MAX_PRIO = 3
@@ -116,22 +140,22 @@ class ClassesDB:
         )
         return cur.fetchone()
 
-    def get_capacities(self) -> list[tuple[int, int]]:
+    def get_full_schools(self) -> list[School]:
         """Returns how many seats are left for each school"""
 
         cur = self.conn.cursor()
         cur.execute(
             """
             SELECT
-                id,
-                capacity - (
-                    SELECT COUNT(*) FROM students
-                    WHERE school = id AND (enroll_status = ? OR enroll_status = ?)
-                ) AS capacity_left
-            FROM schools;""",
+                id
+            FROM schools
+            WHERE (capacity - (
+                SELECT COUNT(*) FROM students
+                WHERE school = id AND (enroll_status = ? OR enroll_status = ?)
+            )) = 0;""",
             (Status.Pending, Status.Accepted),
         )
-        return cur.fetchall()
+        return [School(n[0]) for n in cur.fetchall()]
 
     def get_enrollments(self, school: School) -> list[int]:
         cur = self.conn.cursor()
@@ -248,24 +272,35 @@ class ClassesDB:
 
         self.commit_or_rollback()
 
-    def get_queue(self, school: School, count: int, status: Status):
+    def get_queue_top(
+        self, status: Status, exclude: list[School]
+    ) -> tuple[int, School] | None:
+        """Returns the student with the highest priority who currently has the
+        state `status` who hasn't been assigned
+        or denied yet.
+
+        One student can appear twice, once for each choice. By adding Schools
+        to `exclude`, assignments to specific schools can be excluded, therefore
+        allowing you to iterate over the table while still maintaining the order
+        of the queue.
+
+        """
         cur = self.conn.cursor()
 
+        exclusions = ",".join(str(x) for x in exclude)  # like "2,4,5" or ""
+
         cur.execute(
-            """
-            SELECT DISTINCT discord_id
+            f"""
+            SELECT discord_id, school
             FROM queue
-            WHERE enroll_status = ? AND school = ?
+            WHERE enroll_status = ? AND NOT school IN ({exclusions})
             ORDER BY position ASC
-            LIMIT ?;""",
-            (
-                status,
-                school,
-                count,
-            ),
+            LIMIT 1;""",
+            (status,),
         )
 
-        return [x[0] for x in cur.fetchall()]
+        res = cur.fetchone()
+        return None if not res else (res[0], School(res[1]))
 
     def get_users_school(self, dc_id: int) -> School | None:
         cur = self.conn.cursor()
@@ -363,3 +398,14 @@ class ClassesDB:
         self.commit_or_rollback()
 
         return rows
+
+    def get_state(self, key: BotState) -> Any | None:
+        cur = self.conn.cursor()
+        cur.execute("SELECT v FROM bot_state WHERE k = ?;", (key.name,))
+        return type_or_none(key.value, cur.fetchone())
+
+    def set_state(self, key: BotState, value: Any):
+        self.conn.execute(
+            "REPLACE INTO bot_state (k, v) VALUES (?, ?);", (key.name, value)
+        )
+        self.commit_or_rollback()

@@ -18,25 +18,47 @@ class AssignmentSys:
         self.db = db
 
         # self.invite_timeout = datetime.timedelta(hours=36)
-        self.invite_timeout = datetime.timedelta(minutes=2)
+        self.invite_timeout = datetime.timedelta(
+            minutes=2
+        )  # TODO: Reset after tests
+
+    async def fetch_or_deny(self, user_id: int) -> discord.User | None:
+        try:
+            return await self.bot.fetch_user(user_id)
+        except discord.NotFound:
+            self.bot.logger.error("User %s could not be found", user_id)
+            self.db.set_enrollment_status(user_id, Status.Denied)
+
 
     async def send_wait_msg_and_set_status(self, user_id: int):
         user = await self.bot.fetch_user(user_id)
+        if user is None:  # TODO: use fetch_or_deny instead and combine with send_invite_and_set_status
+            return
+
+        self.bot.logger.info("User %s has been sent a wait message", user_id)
 
         view = invite.WaitView(self.bot)
-        msg = await user.send(
-            "Hey, sadly you didn't get selected this time. You're still in the "
-            "queue and might still get a position if someone else doesn't accept "
-            "their invite. \n"
-            "If you don't want to be in the queue, you can use the button.",
-            view=view,
-        )
+        try:
+            msg = await user.send(
+                "Hey, sadly you didn't get selected this time. You're still in the "
+                "queue and might still get a position if someone else doesn't accept "
+                "their invite. \n"
+                "If you don't want to be in the queue, you can use the button.",
+                view=view,
+            )
 
-        self.db.set_enrollment_status(user_id, Status.Waiting, msg.id)
+            self.db.set_enrollment_status(user_id, Status.Waiting, msg.id)
+        except discord.Forbidden:
+            self.bot.logger.info(
+                f"user {user_id} had their DMs closed during assignment"
+            )
+            self.db.set_enrollment_status(user_id, Status.Denied)
 
     async def send_invite_and_set_status(self, user_id: int, school: School):
         old_msg_id = self.db.get_users_message(user_id)
         user = await self.bot.fetch_user(user_id)
+
+        self.bot.logger.info("User %s has been invited into %s", user_id, school)
 
         if old_msg_id is not None:
             old_message = await user.fetch_message(old_msg_id)
@@ -64,51 +86,65 @@ class AssignmentSys:
             self.bot.logger.info(
                 f"user {user_id} had their DMs closed during assignment"
             )
-            # TODO: Mark them as denied
-            await self.send_next_invite(user_id=user_id)
+            self.db.set_enrollment_status(user_id, Status.Denied)
 
-    async def send_next_invite(
-        self,
-        user_id: int,
-        old_msg_id: int | None = None,
-        school: School | None = None,
-    ):
+    async def expire_and_deny(self, user_id: int, msg_id: int):
+        old_msg_id = self.db.get_users_message(user_id)
+        user = await self.bot.fetch_user(user_id)
 
-        if school is None:
-            school = self.db.get_users_school(user_id)
-
-        if school is None:
-            raise AssertionError
+        self.bot.logger.info("Users %s invite expired", user_id)
 
         if old_msg_id is not None:
-            user = await self.bot.fetch_user(user_id)
-            old_msg = await user.fetch_message(old_msg_id)
-            self.db.set_enrollment_status(user_id, Status.Expired)
-            await old_msg.edit(content="Your invite expired.", view=None)
+            old_message = await user.fetch_message(old_msg_id)
+            await old_message.delete()
 
-        nextq = self.db.get_queue(school, 1, Status.Waiting)
-        if len(nextq):
-            await self.send_invite_and_set_status(nextq[0], school)
+            try:
+                await user.send("Your invite has expired.")
+            except discord.Forbidden:
+                self.bot.logger.error("User %s has their DMs closed.", user_id)
         else:
-            self.bot.logger.info(
-                f"No more applications for {school} left to assign."
-            )
+            # This path would suggests that the user never received an invite.
+            # In this case let's just silently ignore this to avoid crashes.
+            pass  # for now?
+
+        self.db.set_enrollment_status(user_id, Status.Denied)
 
     async def recreate(self):
         """Recreate all the assignments and orders."""
         self.db.reset_enrolls()
 
-    async def send_initial_invites_and_waits(self):
-        # send invites
-        for s, capacity in self.db.get_capacities():
-            for student in self.db.get_queue(
-                School(s), capacity, Status.Unsent
-            ):
-                await self.send_invite_and_set_status(student, School(s))
+    async def advance_states(self):
+        """Advances the state machine for the enrolls of the students.
+        See the SVG for more info.
 
-        # send wait messages
-        for s, _ in self.db.get_capacities():
-            for student in self.db.get_queue(
-                School(s), count=1000000000, status=Status.Unsent
-            ):
-                await self.send_wait_msg_and_set_status(student)
+        Specifically the dashed lines are covered here while the solid lines are
+        activated by the user clicking on a button.
+
+        The Unsent->Denied transitions are covered in `send_invite_and_set_status`
+        and `reset_enrolls`.
+
+        """
+        # Advance Pending->Denied (expiry)
+        for user, msg in self.db.get_expired_invites(
+            datetime.datetime.now(main.TZ)
+        ):
+            await self.expire_and_deny(user, msg)
+
+        # Advance Waiting->Pending (queue)
+        await self.move_to_pending(Status.Waiting)
+
+        # Advance Unsent->Pending (queue)
+        await self.move_to_pending(Status.Unsent)
+
+        # Advance Unsent->Waiting (queue)
+        while x := self.db.get_queue_top(Status.Unsent, []):
+            user_id, _ = x
+            await self.send_wait_msg_and_set_status(user_id)
+        # Given that this is called right after Unsent->Pending this shouldn't
+        # send someone waiting who shouldn't be. Otherwise it wouldn't be so bad,
+        # as the next iteration will clean it up.
+
+    async def move_to_pending(self, status: Status):
+        while x := self.db.get_queue_top(status, self.db.get_full_schools()):
+            user_id, school = x
+            await self.send_invite_and_set_status(user_id, school)

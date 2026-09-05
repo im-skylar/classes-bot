@@ -49,8 +49,29 @@ As of right now, the bot is server-agnostic, meaning that if is added to multipl
 - [x] priority reset
 - [x] add /change-priority admin command
 - [x] reinsert minimum roll
-- [ ] bug: handle crash during initial sending
+- [ ] bug: exceptions while sending
+- [x] transition to new system with only cleanup queue and no instant state transitions other than deny and accept
+- [ ] add check state command
+- [ ] think of better command names
+- [ ] add stop assignment command
+- [ ] make sure, all `user.send`s are wrapped in `try: except`
 - [x] disallow commands via DM (solution: only disallow commands that need admin privileges, since it's the only time, server info is used)
 
 ## Developing Notes
+
+### Possible command names:
+
+- `prefs list`
+- `prefs choose {choice} [choice]`
+- `prefs remove`
+- `assignments generate`
+- `assignments close`
+- `assignments list`
+- `assignments export`
+- `user get [user]` (list user status: priority, state, school)
+- `user assign {user} {school}`
+- `user set_prio {user} {priority}`
+- `user deny {user}`
+
+
 ![Status State Machine](./status_statemachine.svg)
