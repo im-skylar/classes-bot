@@ -101,6 +101,12 @@ class ClassesDB:
         )
         self.commit_or_rollback()
 
+    def delete_student(self, discord_id: int):
+        self.conn.execute(
+            "DELETE FROM students WHERE discord_id = ?;", (discord_id,)
+        )
+        self.commit_or_rollback()
+
     def update_choices(
         self,
         discord_id: int,

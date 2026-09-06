@@ -17,7 +17,6 @@ class InviteView(discord.ui.View):
     async def deny(self, inter: discord.Interaction, button: discord.ui.Button):
         self.bot.db.set_enrollment_status(inter.user.id, Status.Denied)
         await inter.response.edit_message(content="Declined.", view=None)
-        await self.bot.assignments.send_next_invite(inter.user.id)
     
 
 class WaitView(discord.ui.View):
