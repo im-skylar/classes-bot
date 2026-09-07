@@ -54,6 +54,11 @@ FROM (
         1 AS choice_rank,
         roll
     FROM students
+    WHERE
+        discord_id IS NOT NULL
+        AND enroll_status IS NOT NULL
+        AND first_choice IS NOT NULL
+        AND roll IS NOT NULL
     UNION ALL
     SELECT
         discord_id,
@@ -63,4 +68,9 @@ FROM (
         2 AS choice_rank,
         roll
     FROM students
+    WHERE
+        discord_id IS NOT NULL
+        AND enroll_status IS NOT NULL
+        AND second_choice IS NOT NULL
+        AND roll IS NOT NULL
 ) AS choices;

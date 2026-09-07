@@ -43,7 +43,7 @@ class ClassesCog(commands.Cog):
                 )
             )
 
-        self.bot.db.update_choices(inter.user.id, first_choice, second_choice)
+        self.bot.db.set_choices(inter.user.id, first_choice, second_choice)
 
         return await inter.response.send_message(
             (
@@ -61,7 +61,7 @@ class ClassesCog(commands.Cog):
         description="Retract you preferences",
     )
     async def remove_enrollment_choices(self, inter: discord.Interaction):
-        self.bot.db.update_choices(inter.user.id, None, None)
+        self.bot.db.set_choices(inter.user.id, None, None)
 
         return await inter.response.send_message(
             (
@@ -119,7 +119,6 @@ class ClassesCog(commands.Cog):
         )
 
         await self.bot.assignments.recreate()
-        await self.bot.assignments.advance_states()
 
 
     @app_commands.command(
@@ -171,7 +170,7 @@ class ClassesCog(commands.Cog):
         if not await self.is_admin(inter):
             return
 
-        self.bot.db.change_capacity(school, new_capacity)
+        self.bot.db.set_capacity(school, new_capacity)
 
         await inter.response.send_message(
             f"Changed {school.display}s capacity to {new_capacity}."

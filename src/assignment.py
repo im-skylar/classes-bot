@@ -6,7 +6,7 @@ import discord
 import main
 import src.db
 from src import invite
-from src.db import Status, School
+from src.db import Status, School, BotState
 
 
 def prettydate(x: dt) -> str:
@@ -51,6 +51,8 @@ class AssignmentSys:
     async def recreate(self):
         """Recreate all the assignments and orders."""
         self.db.reset_enrolls()
+        await self.advance_states()
+        self.start_assignment_task()
 
     async def advance_states(self):
         """Advances the state machine for the enrolls of the students.
@@ -80,10 +82,22 @@ class AssignmentSys:
         # send someone waiting who shouldn't be. Otherwise it wouldn't be so bad,
         # as the next iteration will clean it up.
 
+        if len(self.db.get_full_schools(only_accepted=True)) == len(School):
+            # Everyone is assigned and commited.
+            # Further movements are not necessary
+            self.stop_assignment_task()
+
     async def move_to_pending(self, status: Status):
         while x := self.db.get_queue_top(status, self.db.get_full_schools()):
             user_id, school = x
             await self.send_msg_and_set_status(user_id, Status.Pending, school)
+
+    def unsound_user(self, user_id: int):
+        """To be called if a user somehow has their data row fucked up."""
+        self.bot.logger.error(
+            f"user {user_id} didn't have their school set during their assignment"
+        )
+        self.db.set_enrollment_status(user_id, Status.Denied)
 
     async def send_msg_and_set_status(
         self, user_id: int, status: Status, school: School | None = None
@@ -110,7 +124,10 @@ class AssignmentSys:
         expires_at = None
         match status:
             case Status.Pending:
-                assert school is not None
+                if school is None:
+                    # user is a little freak
+                    self.unsound_user(user_id)
+                    return
                 expires_at = dt.now(main.TZ) + self.invite_timeout
                 view = invite.InviteView(self.bot)
                 msg_text = await self.gen_invite_text(school, expires_at)
@@ -137,9 +154,30 @@ class AssignmentSys:
                 school=school,
             )
 
-            self.bot.logger.info("Updated user %s to %s", user_id, status.display)
+            self.bot.logger.info(
+                "Updated user %s to %s", user_id, status.display
+            )
         except discord.Forbidden:
             self.bot.logger.info(
                 f"user {user_id} had their DMs closed during assignment"
             )
             self.db.set_enrollment_status(user_id, Status.Denied)
+
+    def start_assignment_task(self):
+        self.db.set_state(BotState.ASSIGNMENTS_CLEANUP_RUNNING, True)
+
+        try:
+            self.bot.state_advance_task.start()
+        except RuntimeError:
+            pass  # was already running
+
+    def resume_assignment_task(self):
+        """Starts the assignment task only if it was running during the last session"""
+        old_state = self.db.get_state(BotState.ASSIGNMENTS_CLEANUP_RUNNING)
+
+        if old_state is None or old_state == False:
+            self.start_assignment_task()
+
+    def stop_assignment_task(self):
+        self.db.set_state(BotState.ASSIGNMENTS_CLEANUP_RUNNING, False)
+        self.bot.state_advance_task.stop()

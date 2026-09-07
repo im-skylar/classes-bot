@@ -85,7 +85,7 @@ class ClassesBot(commands.Bot):
             self.synced = True
             self.logger.info("Synced command tree")
 
-        self.expiry_cleanup.start()  # TODO: respect DB state
+        self.assignments.resume_assignment_task()
 
     async def close(self) -> None:
         self.db.close()
@@ -107,10 +107,10 @@ class ClassesBot(commands.Bot):
             exit(1)
 
     @tasks.loop(minutes=1)
-    async def expiry_cleanup(self):
+    async def state_advance_task(self):
         await self.assignments.advance_states()
 
-    @expiry_cleanup.before_loop
+    @state_advance_task.before_loop
     async def before_cleanup(self):
         await self.wait_until_ready()
 

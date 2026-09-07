@@ -107,7 +107,7 @@ class ClassesDB:
         )
         self.commit_or_rollback()
 
-    def update_choices(
+    def set_choices(
         self,
         discord_id: int,
         first_choice: School | None,
@@ -133,7 +133,7 @@ class ClassesDB:
 
     def get_choices(
         self, discord_id: int
-    ) -> tuple[School | None, School | None]:
+    ) -> tuple[int | None, int | None]:
         cur = self.conn.cursor()
         cur.execute(
             """
@@ -146,8 +146,12 @@ class ClassesDB:
         )
         return cur.fetchone()
 
-    def get_full_schools(self) -> list[School]:
-        """Returns how many seats are left for each school"""
+    def get_full_schools(self, only_accepted=False) -> list[School]:
+        """Returns which schools are currently full (Pending answer and accepted).
+
+        If `only_accepted` is `True`, only people who accepted are counted. Therefore
+        if this list contains all schools, the assignment system can be stopped.
+        """
 
         cur = self.conn.cursor()
         cur.execute(
@@ -159,7 +163,10 @@ class ClassesDB:
                 SELECT COUNT(*) FROM students
                 WHERE school = id AND (enroll_status = ? OR enroll_status = ?)
             )) = 0;""",
-            (Status.Pending, Status.Accepted),
+            (
+                Status.Pending,
+                Status.Accepted if not only_accepted else Status.Pending,  # lol
+            ),
         )
         return [School(n[0]) for n in cur.fetchall()]
 
@@ -180,7 +187,7 @@ class ClassesDB:
 
         return [app[0] for app in cur.fetchall()]
 
-    def change_capacity(self, school: School, new_capacity: int):
+    def set_capacity(self, school: School, new_capacity: int):
         self.conn.execute(
             "UPDATE schools SET capacity = ? WHERE id = ?;",
             (
@@ -308,7 +315,7 @@ class ClassesDB:
         res = cur.fetchone()
         return None if not res else (res[0], School(res[1]))
 
-    def get_users_school(self, dc_id: int) -> School | None:
+    def get_users_school(self, dc_id: int) -> int | None:
         cur = self.conn.cursor()
 
         cur.execute(
@@ -326,6 +333,14 @@ class ClassesDB:
         )
 
         return cur.fetchone()[0]
+
+    def message_exists(self, msg_id: int) -> bool:
+        cur = self.conn.cursor()
+        cur.execute(
+            "SELECT invt_msg_id FROM students WHERE invt_msg_id = ?;", (msg_id,)
+        )
+
+        return bool(cur.fetchone())
 
     def get_expired_invites(
         self, as_of: datetime.datetime

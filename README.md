@@ -43,18 +43,23 @@ As of right now, the bot is server-agnostic, meaning that if is added to multipl
 - [x] notify users of their results
 - [x] reset aptitude rng to 0-19
 - [x] list-applicants not working
-- [ ] handle deleted users
+- [x] handle deleted users
 - [x] csv export (with priorities listed)
 - [x] bug: users without preferences gain priority
 - [x] priority reset
 - [x] add /change-priority admin command
 - [x] reinsert minimum roll
-- [ ] bug: exceptions while sending
+- [x] bug: exceptions while sending
 - [x] transition to new system with only cleanup queue and no instant state transitions other than deny and accept
 - [ ] add check state command
+- [x] bug: students appear in queue without any preferences
 - [ ] think of better command names
 - [ ] add stop assignment command
-- [ ] make sure, all `user.send`s are wrapped in `try: except`
+- [ ] notify caller of close-app when finished
+- [x] make the bot _not_ resume assignment if it is marked as such in the db
+- [x] stop assignment task when all schools are full with accepted people
+- [ ] clean up old invites when new ones arrive
+- [x] make sure, all `user.send`s are wrapped in `try: except`
 - [x] disallow commands via DM (solution: only disallow commands that need admin privileges, since it's the only time, server info is used)
 
 ## Developing Notes
